@@ -12,7 +12,7 @@ from src.telegram_publisher import TelegramPublisher
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_FALLBACK_CHOICE = "మాయ బాల్కనీలో నిలబడి వర్షంలో తడుస్తూ విక్రమ్ వైపు కళ్లలోకి సూటిగా చూసింది (Maya stayed on the rain-soaked balcony, meeting Vikram's gaze directly)."
+DEFAULT_FALLBACK_CHOICE = "వెంటనే ధైర్యంగా అతని టెర్రస్ పైకి వెళ్లి కాఫీ తాగాలి ☕✨"
 
 
 class PollResolver:

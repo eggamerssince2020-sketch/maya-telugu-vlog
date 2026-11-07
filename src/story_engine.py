@@ -397,6 +397,14 @@ class StoryEngine:
     def _generate_mock_episode(self, episode_number: int, winning_poll_choice: Optional[str]) -> EpisodePayload:
         """Generates an authentic, deeply romantic, confession-rich episode with physical contact in colloquial Telugu."""
         choice_ref = winning_poll_choice or "వెంటనే ధైర్యంగా అతని టెర్రస్ పైకి వెళ్లి కాఫీ తాగాలి"
+        if (
+            not choice_ref
+            or choice_ref.startswith("Option")
+            or "Maya stayed" in choice_ref
+            or "నిలబడి" in choice_ref
+            or re.search(r"^[A-Za-z0-9_\s]+$", choice_ref)
+        ):
+            choice_ref = "వెంటనే ధైర్యంగా అతని టెర్రస్ పైకి వెళ్లి కాఫీ తాగాలి"
 
         if episode_number == 1:
             teaser = (
