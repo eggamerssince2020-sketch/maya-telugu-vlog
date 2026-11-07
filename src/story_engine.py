@@ -217,23 +217,26 @@ class StoryEngine:
             logger.info("Using mock StoryEngine generation (MOCK_MODE or missing API key).")
             return self._generate_mock_episode(episode_number, winning_poll_choice)
 
-        logger.info("Executing Stage 1: Story Architect with model '%s'...", self.settings.STORY_ARCHITECT_MODEL)
-        architect_output = self._run_stage1_architect(
-            episode_number=episode_number,
-            arc=arc,
-            winning_poll_choice=winning_poll_choice,
-            past_summaries=past_summaries,
-            recent_outfits=recent_outfits,
-        )
+        try:
+            logger.info("Executing Stage 1: Story Architect with model '%s'...", self.settings.STORY_ARCHITECT_MODEL)
+            architect_output = self._run_stage1_architect(
+                episode_number=episode_number,
+                arc=arc,
+                winning_poll_choice=winning_poll_choice,
+                past_summaries=past_summaries,
+                recent_outfits=recent_outfits,
+            )
 
-        logger.info("Executing Stage 2: Telugu Writer with model '%s'...", self.settings.TELUGU_WRITER_MODEL)
-        payload = self._run_stage2_telugu_writer(
-            episode_number=episode_number,
-            architect_output=architect_output,
-            winning_poll_choice=winning_poll_choice,
-        )
-
-        return payload
+            logger.info("Executing Stage 2: Telugu Writer with model '%s'...", self.settings.TELUGU_WRITER_MODEL)
+            payload = self._run_stage2_telugu_writer(
+                episode_number=episode_number,
+                architect_output=architect_output,
+                winning_poll_choice=winning_poll_choice,
+            )
+            return payload
+        except Exception as e:
+            logger.error("Error during 2-stage episode generation: %s. Using fail-safe authentic Telugu episode.", e)
+            return self._generate_mock_episode(episode_number, winning_poll_choice)
 
     def _run_stage1_architect(
         self,
@@ -271,24 +274,23 @@ class StoryEngine:
             f"Please generate the narrative blueprint and Flux prompt in JSON."
         )
 
-        raw_json = self._call_llm(
-            model=self.settings.STORY_ARCHITECT_MODEL,
-            system_prompt=system_prompt,
-            user_prompt=user_prompt,
-            temperature=0.85,
-        )
-
         try:
+            raw_json = self._call_llm(
+                model=self.settings.STORY_ARCHITECT_MODEL,
+                system_prompt=system_prompt,
+                user_prompt=user_prompt,
+                temperature=0.85,
+            )
             cleaned = self._clean_json_markdown(raw_json)
             return json.loads(cleaned)
         except Exception as e:
-            logger.warning("Stage 1 JSON parsing error: %s. Using raw text wrapper.", e)
+            logger.warning("Stage 1 LLM/JSON parsing error: %s. Using default narrative blueprint.", e)
             return {
-                "plot_beats": raw_json,
-                "outfit_used": "Draped crimson georgette saree with deep-cut backless blouse",
-                "image_prompt_en": f"{self.settings.MAYA_TRIGGER_WORD}, candid 35mm film photograph of Maya, 24yo South Indian woman in crimson georgette saree, pent house balcony, candlelit rim lighting",
-                "summary_en": "Maya followed up on yesterday's poll choice, heightening the romantic chemistry with Vikram under the Hyderabad midnight rain.",
-                "poll_concept": "Should Maya let Vikram photograph her or step inside?",
+                "plot_beats": "Terrace midnight encounter in rain with hot coffee and intimate touch.",
+                "outfit_used": "Emerald green silk slip dress with delicate lace neckline",
+                "image_prompt_en": f"{self.settings.MAYA_TRIGGER_WORD}, candid 35mm film photograph of stunning 24yo South Indian woman Maya, intensely seductive magnetic dark almond eyes, parted plump glossy lips, wet jet-black hair clinging to glowing honey-bronze skin, curvy voluptuous hourglass silhouette, emerald green silk slip dress with lace trims, luxury rooftop penthouse terrace at midnight, soft rain, warm bokeh, 8k resolution",
+                "summary_en": "Maya followed up on yesterday's poll choice, meeting Vikram on the terrace in the rain for hot coffee where their fingers touched and electricity sparked.",
+                "poll_concept": "Should Maya stay on the terrace in the rain or invite Vikram inside?",
             }
 
     def _run_stage2_telugu_writer(
@@ -333,12 +335,16 @@ class StoryEngine:
             "Write Maya's deeply romantic, sensual Telugu episode now in strict JSON."
         )
 
-        raw_json = self._call_llm(
-            model=self.settings.TELUGU_WRITER_MODEL,
-            system_prompt=system_prompt,
-            user_prompt=user_prompt,
-            temperature=0.85,
-        )
+        try:
+            raw_json = self._call_llm(
+                model=self.settings.TELUGU_WRITER_MODEL,
+                system_prompt=system_prompt,
+                user_prompt=user_prompt,
+                temperature=0.85,
+            )
+        except Exception as e:
+            logger.warning("Stage 2 LLM call failed: %s. Using authentic handcrafted Telugu episode.", e)
+            return self._generate_mock_episode(episode_number, winning_poll_choice)
 
         # Detect foreign script (Japanese, Chinese, Malayalam, Armenian, Cyrillic) or German word hallucinations
         foreign_scripts_detected = bool(re.search(r"[\u4E00-\u9FFF\u3040-\u30FF\u0D00-\u0D7F\u0530-\u058F\u0980-\u09FF\u0600-\u06FF\u0400-\u04FF\u0E00-\u0E7F]", raw_json))
