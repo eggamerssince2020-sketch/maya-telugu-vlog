@@ -1,0 +1,13 @@
+# Production & CI dependencies for maya-telugu-vlog
+fal-client>=0.4.0
+gradio-client>=2.7.0
+httpx>=0.27.0
+openai>=1.20.0
+pillow>=11.0.0
+pydantic>=2.7.0
+pydantic-settings>=2.2.0
+python-dotenv>=1.0.0
+supabase>=2.4.0
+pytest>=8.1.0
+pytest-asyncio>=0.23.0
+pytest-mock>=3.14.0

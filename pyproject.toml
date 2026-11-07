@@ -1,0 +1,43 @@
+[project]
+name = "maya-telugu-vlog"
+version = "0.1.0"
+description = "Autonomous Daily Telugu Vlog & Visual Storytelling Pipeline on Telegram"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "fal-client>=0.4.0",
+    "gradio-client>=2.7.0",
+    "httpx>=0.27.0",
+    "huggingface-hub>=2.4.0",
+    "openai>=1.20.0",
+    "pillow>=11.0.0",
+    "pydantic>=2.7.0",
+    "pydantic-settings>=2.2.0",
+    "python-dotenv>=1.0.0",
+    "supabase>=2.4.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.1.0",
+    "pytest-asyncio>=0.23.0",
+    "pytest-mock>=3.14.0",
+]
+
+[project.scripts]
+maya-vlog = "src.main:cli"
+
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+pythonpath = ["."]
+filterwarnings = [
+    "ignore::DeprecationWarning",
+]
+
+[build-system]
+requires = ["uv_build>=0.13.7,<0.14.0"]
+build-backend = "uv_build"

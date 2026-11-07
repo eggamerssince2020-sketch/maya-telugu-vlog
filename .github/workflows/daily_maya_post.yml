@@ -1,0 +1,74 @@
+name: Daily Maya Telugu Vlog Post
+
+on:
+  schedule:
+    # 10:00 PM IST (UTC+5:30) is 16:30 UTC every day
+    - cron: '30 16 * * *'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Run in dry-run mode (generates preview without posting to Telegram)'
+        required: true
+        type: boolean
+        default: false
+
+jobs:
+  run-pipeline:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run Test Suite
+        run: |
+          pytest tests/test_pipeline_mock.py -v
+
+      - name: Execute Maya Daily Pipeline
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          OPENROUTER_BASE_URL: https://openrouter.ai/api/v1
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          STORY_ARCHITECT_MODEL: ${{ vars.STORY_ARCHITECT_MODEL || 'nvidia/nemotron-3-ultra-550b-a55b:free' }}
+          TELUGU_WRITER_MODEL: ${{ vars.TELUGU_WRITER_MODEL || 'nvidia/nemotron-3-ultra-550b-a55b:free' }}
+          IMAGE_PROVIDER: ${{ vars.IMAGE_PROVIDER || 'huggingface' }}
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          TOGETHER_API_KEY: ${{ secrets.TOGETHER_API_KEY }}
+          FAL_KEY: ${{ secrets.FAL_KEY }}
+          FAL_LORA_URL: ${{ secrets.FAL_LORA_URL || 'https://huggingface.co/XLabs-AI/flux-lora-collection/resolve/main/flux-realism-lora.safetensors' }}
+          FAL_LORA_SCALE: 0.95
+          MAYA_TRIGGER_WORD: ${{ vars.MAYA_TRIGGER_WORD || 'maya_south_indian' }}
+          FAL_ENABLE_SAFETY_CHECKER: 'false'
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHANNEL_ID: ${{ secrets.TELEGRAM_CHANNEL_ID }}
+          TELEGRAM_SPOILER_BLUR: 'true'
+        run: |
+          if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then
+            echo "Running in DRY-RUN mode..."
+            python -m src.main --dry-run
+          else
+            echo "Running in LIVE publishing mode..."
+            python -m src.main --live
+          fi
+
+      - name: Upload Preview Artifact (if dry-run)
+        if: ${{ github.event.inputs.dry_run == 'true' || failure() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: preview-output
+          path: |
+            preview_output.html
+            preview_image.jpg
+          if-no-files-found: ignore
