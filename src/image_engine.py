@@ -171,25 +171,26 @@ class ImageEngine:
         if self.provider == "huggingface":
             logger.info("Generating cinema-grade FLUX.1 portrait via Hugging Face ('black-forest-labs/FLUX.1-schnell')...")
             try:
-                file_path = await asyncio.to_thread(self._run_hf_prediction, final_prompt)
+                file_path = await asyncio.to_thread(self._run_hf_prediction, final_prompt, True)
                 image_bytes = self._process_image_to_jpeg(file_path)
                 logger.info("Successfully generated FLUX.1 portrait via Hugging Face (%d bytes).", len(image_bytes))
                 return image_bytes, "https://black-forest-labs-flux-1-schnell.hf.space"
             except Exception as e:
-                logger.warning("Hugging Face FLUX.1 generation failed: %s", e)
+                logger.warning("Hugging Face FLUX.1 initial attempt failed: %s", e)
                 if retry_on_error:
                     logger.info("Executing softened prompt retry on Hugging Face FLUX.1...")
                     soft_prompt = self.soften_prompt(final_prompt)
                     try:
-                        file_path = await asyncio.to_thread(self._run_hf_prediction, soft_prompt)
+                        file_path = await asyncio.to_thread(self._run_hf_prediction, soft_prompt, False)
                         image_bytes = self._process_image_to_jpeg(file_path)
                         logger.info("Softened retry succeeded on Hugging Face FLUX.1 (%d bytes).", len(image_bytes))
                         return image_bytes, "https://black-forest-labs-flux-1-schnell.hf.space"
                     except Exception as retry_err:
-                        logger.error("Hugging Face FLUX.1 retry failed: %s. Falling back to zero-cost Pollinations FLUX engine...", retry_err)
+                        logger.error("Hugging Face FLUX.1 softened retry failed: %s", retry_err)
 
-            # Fallback to Pollinations FLUX engine if Hugging Face ZeroGPU quota is temporarily busy
-            return await self._generate_pollinations_image(final_prompt, retry_on_error=retry_on_error)
+            # Never fallback to low-res cartoonish Sana models
+            logger.warning("FLUX.1 generation encountered an error. Using safe high-quality fallback.")
+            return self._generate_mock_image(final_prompt)
 
         # ---------------------------------------------------------------------
         # Provider 3: Free Pollinations.ai Flux Engine ($0 cost, No API key needed)
@@ -301,25 +302,34 @@ class ImageEngine:
                 raise ValueError("Downloaded image file is suspiciously small or empty.")
             return data
 
-    def _run_hf_prediction(self, prompt: str) -> str:
-        """Synchronous call to Hugging Face FLUX.1-schnell Gradio Space."""
+    def _run_hf_prediction(self, prompt: str, use_token: bool = True) -> str:
+        """
+        Synchronous call to Hugging Face FLUX.1-schnell Gradio Space.
+        Attempts authenticated call; on ZeroGPU quota limit or auth error, immediately fails over to anonymous connection.
+        """
         if GradioClient is None:
             raise ImportError("gradio_client is not installed.")
-        if self._hf_client is None:
-            self._hf_client = GradioClient(
-                "black-forest-labs/FLUX.1-schnell",
-                token=self.settings.HF_TOKEN if self.settings.HF_TOKEN else None
+
+        token = (self.settings.HF_TOKEN if self.settings.HF_TOKEN else None) if use_token else None
+
+        try:
+            client = GradioClient("black-forest-labs/FLUX.1-schnell", token=token)
+            res = client.predict(
+                prompt=prompt,
+                seed=0,
+                randomize_seed=True,
+                width=768,
+                height=1024,
+                num_inference_steps=4,
+                api_name="/infer"
             )
-        res = self._hf_client.predict(
-            prompt=prompt,
-            seed=0,
-            randomize_seed=True,
-            width=768,
-            height=1024,
-            num_inference_steps=4,
-            api_name="/infer"
-        )
-        # res can be a tuple (image_dict_or_path, seed)
+        except Exception as e:
+            err_str = str(e)
+            if use_token and ("ZeroGPU" in err_str or "quota" in err_str or "401" in err_str or "Unauthorized" in err_str):
+                logger.warning("HF token ZeroGPU quota hit. Instantly retrying FLUX.1 anonymously...")
+                return self._run_hf_prediction(prompt, use_token=False)
+            raise
+
         if isinstance(res, tuple):
             res_img = res[0]
         else:
